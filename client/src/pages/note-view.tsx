@@ -22,21 +22,29 @@ export default function NoteViewPage() {
 
   const handleDownloadPDF = () => {
     if (!note) return;
-    // Create a printable version and trigger browser print
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
-    const htmlContent = note.content
-      .replace(/^### (.*$)/gm, '<h3 style="margin-top:16px;margin-bottom:8px;font-size:16px;font-weight:600;">$1</h3>')
-      .replace(/^## (.*$)/gm, '<h2 style="margin-top:20px;margin-bottom:10px;font-size:18px;font-weight:600;">$1</h2>')
-      .replace(/^# (.*$)/gm, '<h1 style="margin-top:24px;margin-bottom:12px;font-size:22px;font-weight:700;">$1</h1>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code style="background:#f0f0f0;padding:2px 6px;border-radius:3px;font-size:13px;">$1</code>')
-      .replace(/^> (.*$)/gm, '<blockquote style="border-left:3px solid #6366f1;padding-left:12px;margin:8px 0;color:#666;">$1</blockquote>')
-      .replace(/^- (.*$)/gm, '<li style="margin-left:20px;margin-bottom:4px;">$1</li>')
-      .replace(/\n\n/g, '</p><p style="margin-bottom:10px;line-height:1.7;">')
-      .replace(/\n/g, '<br />');
+    // Split content into sections by headings to wrap each in a keep-together block
+    const sections = note.content.split(/(?=^#{1,3} )/gm);
+
+    const renderSection = (section: string) => {
+      const html = section
+        .replace(/^#{4,} (.*$)/gm, '<h4>$1</h4>')
+        .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`(.*?)`/g, '<code>$1</code>')
+        .replace(/^> (.*$)/gm, '<blockquote>$1</blockquote>')
+        .replace(/^- (.*$)/gm, '<li>$1</li>')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br />');
+      return `<section><p>${html}</p></section>`;
+    };
+
+    const bodyContent = sections.map(renderSection).join('\n');
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -45,15 +53,102 @@ export default function NoteViewPage() {
         <meta charset="utf-8">
         <title>${note.title}</title>
         <style>
-          body { font-family: 'Noto Sans TC', 'General Sans', -apple-system, sans-serif; max-width: 700px; margin: 0 auto; padding: 40px; color: #1a1a1a; line-height: 1.7; font-size: 14px; }
-          h1 { border-bottom: 2px solid #6366f1; padding-bottom: 8px; }
-          ul { padding-left: 0; }
-          @media print { body { padding: 20px; } }
+          @page {
+            margin: 2.2cm 2cm;
+          }
+          body {
+            font-family: 'Noto Sans TC', 'General Sans', -apple-system, sans-serif;
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 0;
+            color: #1a1a1a;
+            line-height: 1.9;
+            font-size: 13.5px;
+            letter-spacing: 0.01em;
+          }
+          /* Keep each topic/section together on one page */
+          section {
+            page-break-inside: avoid;
+            break-inside: avoid;
+            margin-bottom: 8px;
+          }
+          h1 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-top: 28px;
+            margin-bottom: 14px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #6366f1;
+            page-break-after: avoid;
+            break-after: avoid;
+          }
+          h2 {
+            font-size: 17px;
+            font-weight: 600;
+            margin-top: 24px;
+            margin-bottom: 10px;
+            color: #2d2d7a;
+            page-break-after: avoid;
+            break-after: avoid;
+          }
+          h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-top: 18px;
+            margin-bottom: 8px;
+            page-break-after: avoid;
+            break-after: avoid;
+          }
+          p {
+            margin-bottom: 10px;
+            line-height: 1.9;
+            word-spacing: 0.05em;
+          }
+          ul, ol {
+            padding-left: 22px;
+            margin-bottom: 10px;
+          }
+          li {
+            margin-bottom: 5px;
+            line-height: 1.8;
+          }
+          strong { font-weight: 600; }
+          code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 12.5px;
+            font-family: 'JetBrains Mono', 'Menlo', monospace;
+          }
+          blockquote {
+            border-left: 3px solid #6366f1;
+            padding-left: 14px;
+            margin: 10px 0;
+            color: #555;
+            line-height: 1.8;
+          }
+          hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 16px 0;
+          }
+          /* Title page area */
+          .title-block {
+            margin-bottom: 20px;
+          }
+          .title-block h1 {
+            margin-top: 0;
+          }
+          @media print {
+            body { padding: 0; }
+          }
         </style>
       </head>
       <body>
-        <h1 style="font-size:24px;font-weight:700;margin-bottom:16px;">${note.title}</h1>
-        <p style="margin-bottom:10px;line-height:1.7;">${htmlContent}</p>
+        <div class="title-block">
+          <h1>${note.title}</h1>
+        </div>
+        ${bodyContent}
       </body>
       </html>
     `);

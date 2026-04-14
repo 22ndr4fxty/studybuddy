@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: studybuddy
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build && npx drizzle-kit push
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ANTHROPIC_API_KEY
+        sync: false

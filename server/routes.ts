@@ -3,8 +3,12 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
 import Anthropic from "@anthropic-ai/sdk";
-// @ts-ignore
-import pdfParse from "pdf-parse";
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
+const _require = createRequire(
+  typeof __filename !== 'undefined' ? __filename : import.meta.url
+);
+const pdfParse = _require("pdf-parse");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 const anthropic = new Anthropic();
@@ -23,7 +27,7 @@ async function extractTextFromFile(buffer: Buffer, mimeType: string, filename: s
     const base64 = buffer.toString("base64");
     const mediaType = mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
     const response = await anthropic.messages.create({
-      model: "claude_sonnet_4_6",
+      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
       max_tokens: 4096,
       messages: [{
         role: "user",
@@ -32,7 +36,18 @@ async function extractTextFromFile(buffer: Buffer, mimeType: string, filename: s
           source: { type: "base64", media_type: mediaType, data: base64 },
         }, {
           type: "text",
-          text: "Extract ALL text content from this image. Preserve the structure, headings, and formatting as much as possible. If it's handwritten notes, transcribe them accurately. Return only the extracted text.",
+          text: `You are an expert at reading handwritten and printed text from images. Extract ALL text content from this image.
+
+IMPORTANT INSTRUCTIONS:
+- If the image contains HANDWRITTEN notes, read them very carefully letter by letter. Handwriting may be messy, cursive, or abbreviated.
+- Try to understand the context (e.g. school subject) to help decode unclear words.
+- Preserve the structure: headings, bullet points, numbered lists, diagrams/labels, tables.
+- If you see arrows, diagrams, or flowcharts, describe their relationships in text form.
+- For any word you're unsure about, make your best guess based on context rather than skipping it.
+- Include ALL text visible in the image, including margin notes, annotations, and labels.
+- If the text is in Chinese/Cantonese, transcribe it in the original language.
+
+Return only the extracted text content, well-structured with appropriate headings and bullet points.`,
         }],
       }],
     });
@@ -50,7 +65,7 @@ async function generateNotes(content: string, language: string): Promise<{ title
     : "Generate the notes in English.";
 
   const response = await anthropic.messages.create({
-    model: "claude_sonnet_4_6",
+    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
     max_tokens: 8192,
     messages: [{
       role: "user",
@@ -96,7 +111,7 @@ async function generateQuiz(content: string, language: string): Promise<string> 
     : "Generate the quiz in English.";
 
   const response = await anthropic.messages.create({
-    model: "claude_sonnet_4_6",
+    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
     max_tokens: 8192,
     messages: [{
       role: "user",
@@ -151,7 +166,7 @@ async function gradeAnswer(question: string, sampleAnswer: string, keyPoints: st
     : "Provide feedback in English.";
 
   const response = await anthropic.messages.create({
-    model: "claude_sonnet_4_6",
+    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
     max_tokens: 1024,
     messages: [{
       role: "user",

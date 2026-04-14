@@ -179,17 +179,19 @@
   }
 }
 
-/* Markdown rendered content */
-.prose h1 { @apply text-xl font-bold mb-3 mt-6; }
-.prose h2 { @apply text-lg font-semibold mb-2 mt-5; }
-.prose h3 { @apply text-base font-semibold mb-2 mt-4; }
-.prose p { @apply mb-3 leading-relaxed; }
-.prose ul { @apply mb-3 ml-5 list-disc; }
-.prose ol { @apply mb-3 ml-5 list-decimal; }
-.prose li { @apply mb-1; }
-.prose strong { @apply font-semibold; }
+/* Markdown rendered content — force explicit colors for dark mode */
+.prose { @apply text-foreground; }
+.prose h1 { @apply text-xl font-bold mb-3 mt-6 text-foreground; }
+.prose h2 { @apply text-lg font-semibold mb-2 mt-5 text-foreground; }
+.prose h3 { @apply text-base font-semibold mb-2 mt-4 text-foreground; }
+.prose h4 { @apply text-sm font-semibold mb-1.5 mt-3 text-foreground; }
+.prose p { @apply mb-3 leading-relaxed text-foreground; }
+.prose ul { @apply mb-3 ml-5 list-disc text-foreground; }
+.prose ol { @apply mb-3 ml-5 list-decimal text-foreground; }
+.prose li { @apply mb-1 text-foreground; }
+.prose strong { @apply font-semibold text-foreground; }
 .prose em { font-style: italic; }
-.prose code { @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono; }
+.prose code { @apply bg-muted px-1.5 py-0.5 rounded text-sm font-mono text-foreground; }
 .prose blockquote { @apply border-l-4 border-primary/30 pl-4 my-3 text-muted-foreground; }
 .prose hr { @apply my-4 border-border; }
 
