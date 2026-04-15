@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
 const _require = createRequire(
@@ -11,7 +11,9 @@ const _require = createRequire(
 const pdfParse = _require("pdf-parse");
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-const anthropic = new Anthropic();
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || "gemini-2.0-flash" });
 
 function getVisitorId(req: Request): string {
   return req.headers["x-visitor-id"] as string || "local";
@@ -23,20 +25,15 @@ async function extractTextFromFile(buffer: Buffer, mimeType: string, filename: s
     return data.text;
   }
   if (mimeType.startsWith("image/")) {
-    // Use Claude vision to extract text from images
+    // Use Gemini vision to extract text from images
     const base64 = buffer.toString("base64");
-    const mediaType = mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-    const response = await anthropic.messages.create({
-      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
-      max_tokens: 4096,
-      messages: [{
-        role: "user",
-        content: [{
-          type: "image",
-          source: { type: "base64", media_type: mediaType, data: base64 },
-        }, {
-          type: "text",
-          text: `You are an expert at reading handwritten and printed text from images. Extract ALL text content from this image.
+    const imagePart = {
+      inlineData: {
+        mimeType: mimeType,
+        data: base64,
+      },
+    };
+    const prompt = `You are an expert at reading handwritten and printed text from images. Extract ALL text content from this image.
 
 IMPORTANT INSTRUCTIONS:
 - If the image contains HANDWRITTEN notes, read them very carefully letter by letter. Handwriting may be messy, cursive, or abbreviated.
@@ -47,11 +44,9 @@ IMPORTANT INSTRUCTIONS:
 - Include ALL text visible in the image, including margin notes, annotations, and labels.
 - If the text is in Chinese/Cantonese, transcribe it in the original language.
 
-Return only the extracted text content, well-structured with appropriate headings and bullet points.`,
-        }],
-      }],
-    });
-    return (response.content[0] as any).text || "";
+Return only the extracted text content, well-structured with appropriate headings and bullet points.`;
+    const result = await model.generateContent([prompt, imagePart]);
+    return result.response.text() || "";
   }
   // Plain text files
   return buffer.toString("utf-8");
@@ -64,12 +59,7 @@ async function generateNotes(content: string, language: string): Promise<{ title
     ? "Generate the notes in Traditional Chinese (繁體中文)."
     : "Generate the notes in English.";
 
-  const response = await anthropic.messages.create({
-    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
-    max_tokens: 8192,
-    messages: [{
-      role: "user",
-      content: `You are a study notes expert. Analyze the following content and create well-organized, comprehensive study notes.
+  const result = await model.generateContent(`You are a study notes expert. Analyze the following content and create well-organized, comprehensive study notes.
 
 ${langInstruction}
 
@@ -86,11 +76,9 @@ Return your response in this exact JSON format:
 {"title": "...", "notes": "...markdown content..."}
 
 Content to summarize:
-${content.slice(0, 30000)}`,
-    }],
-  });
+${content.slice(0, 30000)}`);
 
-  const text = (response.content[0] as any).text || "{}";
+  const text = result.response.text() || "{}";
   try {
     // Try to extract JSON from the response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -110,12 +98,7 @@ async function generateQuiz(content: string, language: string): Promise<string> 
     ? "Generate the quiz in Traditional Chinese (繁體中文)."
     : "Generate the quiz in English.";
 
-  const response = await anthropic.messages.create({
-    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
-    max_tokens: 8192,
-    messages: [{
-      role: "user",
-      content: `You are a quiz generator for students. Based on the following study material, create a comprehensive quiz.
+  const result = await model.generateContent(`You are a quiz generator for students. Based on the following study material, create a comprehensive quiz.
 
 ${langInstruction}
 
@@ -148,11 +131,9 @@ Return ONLY a JSON array of questions in this exact format (no other text):
 ]
 
 Study material:
-${content.slice(0, 30000)}`,
-    }],
-  });
+${content.slice(0, 30000)}`);
 
-  const text = (response.content[0] as any).text || "[]";
+  const text = result.response.text() || "[]";
   // Extract JSON array from response
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   return jsonMatch ? jsonMatch[0] : "[]";
@@ -165,23 +146,16 @@ async function gradeAnswer(question: string, sampleAnswer: string, keyPoints: st
     ? "Provide feedback in Traditional Chinese (繁體中文)."
     : "Provide feedback in English.";
 
-  const response = await anthropic.messages.create({
-    model: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514",
-    max_tokens: 1024,
-    messages: [{
-      role: "user",
-      content: `Grade this student's answer. ${langInstruction}
+  const result = await model.generateContent(`Grade this student's answer. ${langInstruction}
 
 Question: ${question}
 Sample Answer: ${sampleAnswer}
 Key Points to cover: ${keyPoints.join(", ")}
 Student's Answer: ${userAnswer}
 
-Return JSON only: {"score": <0-100>, "feedback": "..."}`,
-    }],
-  });
+Return JSON only: {"score": <0-100>, "feedback": "..."}`);
 
-  const text = (response.content[0] as any).text || '{"score": 0, "feedback": "Unable to grade"}';
+  const text = result.response.text() || '{"score": 0, "feedback": "Unable to grade"}';
   try {
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) return JSON.parse(jsonMatch[0]);
